@@ -9,9 +9,9 @@ const availableCommands = {
 }
 
 if (command in availableCommands) {
-  availableCommands[command]()
+  availableCommands[command].program()
 } else {
   const root = `(${process.argv[0]})`
   const commands = Object.keys(availableCommands).map(s => `\n  - ${chalk.yellow(s)} ${chalk.dim(availableCommands[s].description)}`)
-  console.log(`Hello, ${chalk.cyan.bold('some-scripts')} here ${chalk.dim(root)} \nAvailable commands are:${commands}`)
+  console.log(`\nHello, ${chalk.cyan.underline.bold('some-scripts')} here! ${chalk.dim(root)} \nAvailable commands are:${commands}\n`)
 }
