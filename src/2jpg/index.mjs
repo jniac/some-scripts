@@ -2,45 +2,53 @@ import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
 import { walk } from '../utils/walk.mjs'
+import { removeDiacritics } from '../utils/diacritics.mjs'
 import chalk from 'chalk'
 
 const dir = process.argv[2]
 const outdir = path.join(dir, 'jpg')
+const quality = 60
+const background = '#808080'
 
 if ((await fs.pathExists(outdir)) === false) {
   await fs.mkdir(outdir)
-  console.log(`created ${chalk.yellow(outdir)}`)
+  console.log(`created dir ${chalk.yellow(outdir)}`)
 }
 
-const safeName = str => str.replace(/\s+/g, '-')
+const safeName = str => {
+  return removeDiacritics(str)
+    .replace(/[\s\\/&$’'"`]+/g, '-')
+    .replace(/-+/g, '-')
+}
 
 const exclude = entry => entry === outdir
 for await (const { filepath, stat } of walk(dir, { exclude })) {
-  const filename = filepath.substring(dir.length + 1)
-  const outfilename = safeName(filename)
-  const outfilepath = path.join(outdir, outfilename)
-  const ext = path.extname(filename)
+  const { ext, name, dir: subdir, base } = path.parse(filepath.substring(dir.length + 1))
+  const relativeOut = path.join(subdir, `${safeName(name)}.jpg`)
+  const out = path.join(outdir, relativeOut)
   switch(ext) {
     case '.jpg':
     case '.jpeg':
     case '.png':
-      break;
+    case '.svg':
+      break
     default:
-      continue;
+      continue
   }
-  if (await fs.pathExists(outfilepath)) {
-    const outstat = await fs.stat(outfilepath)
+  if (await fs.pathExists(out)) {
+    const outstat = await fs.stat(out)
     if (outstat) {
       if (stat.mtime < outstat.mtime) {
-        console.log(`skip ${chalk.yellow(filename)} (file is older)`)
+        console.log(`skip ${chalk.yellow(base)} (file is older)`)
         continue
       }
-      await fs.remove(outfilepath)
+      await fs.remove(out)
     }
   }
-  await fs.ensureDir(path.dirname(outfilepath))
+  await fs.ensureDir(path.dirname(out))
   await sharp(filepath)
-    .jpeg({ quality: 60 })
-    .toFile(outfilepath)
-  console.log(`exported ${chalk.yellow(outfilename)}`)
+    .flatten({ background })
+    .jpeg({ quality })
+    .toFile(out)
+  console.log(`exported ${chalk.yellow(relativeOut)}`)
 }
