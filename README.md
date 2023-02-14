@@ -15,6 +15,7 @@ Export all the file from the current folder to a subfolder `jpg` with a copy of
 all the current images converted to jpg:
 ```
 jnc 2jpg
+jnc 2jpg -q 60
 ```
 
 - Recursive: subfolders are exported to subfolders.
