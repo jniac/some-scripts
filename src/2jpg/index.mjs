@@ -3,12 +3,12 @@ import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
 import { walk } from '../utils/walk.mjs'
+import { getOption, options } from '../options.mjs'
 import { removeDiacritics } from '../utils/diacritics.mjs'
-import { findArg } from '../utils/findArg.mjs'
 
 const dir = process.argv[2]
 const outdir = path.join(dir, 'jpg')
-const quality = Number.parseInt(findArg('-q') ?? '80')
+const quality = getOption('quality', 80)
 const background = '#808080'
 
 if ((await fs.pathExists(outdir)) === false) {
@@ -23,7 +23,8 @@ const safeName = str => {
 }
 
 const exclude = entry => entry === outdir
-for await (const { filepath, stat } of walk(dir, { exclude })) {
+const maxDepth = getOption('recursive', false) ? Infinity : 1
+for await (const { filepath, stat } of walk(dir, { exclude, maxDepth })) {
   const { ext, name, dir: subdir, base } = path.parse(filepath.substring(dir.length + 1))
   const relativeOut = path.join(subdir, `${safeName(name)}-q${quality}.jpg`)
   const out = path.join(outdir, relativeOut)
