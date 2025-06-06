@@ -11,7 +11,9 @@
   "description": "",
   "dependencies": {
     "chalk": "^5.2.0",
+    "fast-glob": "^3.3.3",
     "fs-extra": "^11.1.0",
-    "sharp": "^0.31.3"
+    "sharp": "^0.31.3",
+    "yargs": "^18.0.0"
   }
 }

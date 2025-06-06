@@ -6,6 +6,10 @@ const availableCommands = {
     description: 'A command to quickly export jpg from the current folder.',
     program: () => import('./2jpg/index.mjs'),
   },
+  'rnm': {
+    description: 'A command to rename files in the current folder.',
+    program: () => import('./rnm/index.mjs'),
+  },
 }
 
 if (command in availableCommands) {
