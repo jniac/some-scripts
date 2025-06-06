@@ -50,14 +50,26 @@ if (files.length === 0) {
   process.exit(1)
 }
 
+const name = argv['name'] ?? 'file-%04d'
+
 console.log(`Found ${files.length} files matching the pattern.`)
 
+const indexes = {}
 for (let i = 0; i < files.length; i++) {
   const file = files[i]
   const chunks = file.split('/')
-  const fileName = chunks.pop() // consume the last part as the file name
-  const newFileName = argv['name'] ? formatWithIndex(argv['name'], i + offset) : file
-  const newFile = path.join(...chunks, newFileName)
+  const fileName = chunks.pop()
+  const ext = path.extname(fileName)
+  const fileDir = path.join(...chunks)
+
+  const index = indexes[fileDir] ?? 0
+  indexes[fileDir] = index + 1
+
+  const newFileName = name ? formatWithIndex(name, index + offset) : file
+
+  let newFile = path.join(fileDir, newFileName)
+  if (path.extname(newFile) === '')
+    newFile += ext // append the original extension if the new name has no extension
 
   if (argv['dry-run']) {
     console.log(`Would rename: ${file} -> ${newFile}`)
