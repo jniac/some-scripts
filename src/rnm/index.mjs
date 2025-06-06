@@ -50,7 +50,10 @@ if (files.length === 0) {
   process.exit(1)
 }
 
-const name = argv['name'] ?? 'file-%04d'
+let name = argv['name'] ?? 'file-%04d'
+if (/%0\d+d/.test(name) === false) {
+  name += '-%04d'
+}
 
 console.log(`Found ${files.length} files matching the pattern.`)
 
