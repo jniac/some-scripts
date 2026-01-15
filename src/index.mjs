@@ -1,4 +1,7 @@
 import chalk from 'chalk'
+
+const packageJson = { version: '1.0.0' }
+
 const command = process.argv[3]
 
 const availableCommands = {
@@ -10,6 +13,10 @@ const availableCommands = {
     description: 'A command to rename files in the current folder.',
     program: () => import('./rnm/index.mjs'),
   },
+  'mp4': {
+    description: 'A command to quickly export mp4 from the current folder.',
+    program: () => import('./mp4/index.mjs'),
+  }
 }
 
 if (command in availableCommands) {
@@ -17,5 +24,5 @@ if (command in availableCommands) {
 } else {
   const root = `(${process.argv[0]})`
   const commands = Object.keys(availableCommands).map(s => `\n  - ${chalk.yellow(s)} ${chalk.dim(availableCommands[s].description)}`)
-  console.log(`\nHello, ${chalk.cyan.underline.bold('some-scripts')} here! ${chalk.dim(root)} \nAvailable commands are:${commands}\n`)
+  console.log(`\nHello, ${chalk.cyan.underline.bold('some-scripts')}(${packageJson.version}) here! ${chalk.dim(root)} \nAvailable commands are:${commands}\n`)
 }
