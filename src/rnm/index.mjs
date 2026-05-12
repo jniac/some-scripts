@@ -50,7 +50,7 @@ let name = nameArg ?? 'file-%04d'
 const files = await fg(filter, { onlyFiles: true })
 
 files.sort((a, b) => {
-  return fs.statSync(b).ctimeMs - fs.statSync(a).ctimeMs
+  return fs.statSync(a).ctimeMs - fs.statSync(b).ctimeMs
 })
 
 if (files.length === 0) {
