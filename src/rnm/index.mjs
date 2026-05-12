@@ -13,10 +13,10 @@ const argv = yargs(args)
     type: 'boolean',
     describe: 'Dry run only',
   })
-  .option('match', {
+  .option('filter', {
     alias: 'm',
     type: 'string',
-    describe: 'Pattern to match files',
+    describe: 'Glob pattern to filter files (e.g. "*.txt" or "subdir/*.jpg")',
   })
   .option('name', {
     alias: 'n',
@@ -38,11 +38,19 @@ function formatWithIndex(template, index) {
   })
 }
 
-const files = await fg(argv['match'] ?? '*')
-const offset = argv['offset'] ?? 0
+const {
+  filter = '*',
+  name: nameArg,
+  offset = 0,
+  dryRun = false,
+} = argv
+
+let name = nameArg ?? 'file-%04d'
+
+const files = await fg(filter, { onlyFiles: true })
 
 files.sort((a, b) => {
-  return fs.statSync(a).ctimeMs - fs.statSync(b).ctimeMs
+  return fs.statSync(b).ctimeMs - fs.statSync(a).ctimeMs
 })
 
 if (files.length === 0) {
@@ -50,7 +58,6 @@ if (files.length === 0) {
   process.exit(1)
 }
 
-let name = argv['name'] ?? 'file-%04d'
 if (/%0\d+d/.test(name) === false) {
   name += '-%04d'
 }
@@ -74,7 +81,7 @@ for (let i = 0; i < files.length; i++) {
   if (path.extname(newFile) === '')
     newFile += ext // append the original extension if the new name has no extension
 
-  if (argv['dry-run']) {
+  if (dryRun) {
     console.log(`Would rename: ${file} -> ${newFile}`)
   } else {
     try {

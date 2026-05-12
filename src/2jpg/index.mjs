@@ -2,20 +2,51 @@ import chalk from 'chalk'
 import fs from 'fs-extra'
 import path from 'path'
 import sharp from 'sharp'
+import yargs from 'yargs'
+import { hideBin } from 'yargs/helpers'
 
-import { getOption } from '../options.mjs'
 import { removeDiacritics } from '../utils/diacritics.mjs'
 import { walk } from '../utils/walk.mjs'
 
-const dir = process.argv[2]
-const quality = getOption('quality', 80)
-const noSuffix = getOption('no-suffix', false)
-const noSubDir = getOption('no-subdir', false)
+const rawArgs = hideBin(process.argv)
+const dir = rawArgs[0]
+
+const argv = yargs(rawArgs.slice(1))
+  .option('quality', {
+    alias: 'q',
+    type: 'number',
+    default: 80,
+    describe: 'JPEG quality (1–100)',
+  })
+  .option('suffix', {
+    type: 'boolean',
+    default: true,
+    describe: 'Omit quality suffix from output filename',
+  })
+  .option('subdir', {
+    type: 'boolean',
+    default: true,
+    describe: 'Output to same directory instead of a jpg/ subfolder',
+  })
+  .option('recursive', {
+    alias: 'r',
+    type: 'boolean',
+    default: false,
+    describe: 'Process subdirectories recursively',
+  })
+  .help()
+  .argv
+
+const {
+  quality,
+  subdir = true,
+  suffix = true,
+} = argv
 const background = '#808080'
 
-const outdir = noSubDir
-  ? dir
-  : path.join(dir, 'jpg')
+const outdir = subdir
+  ? path.join(dir, 'jpg')
+  : dir
 
 if ((await fs.pathExists(outdir)) === false) {
   await fs.mkdir(outdir)
@@ -24,16 +55,16 @@ if ((await fs.pathExists(outdir)) === false) {
 
 const safeName = str => {
   return removeDiacritics(str)
-    .replace(/[\s\\/&$’'"`]+/g, '-')
+    .replace(/[\s\\/&$''"`]+/g, '-')
     .replace(/-+/g, '-')
 }
 
 const exclude = entry => entry === outdir
-const maxDepth = getOption('recursive', false) ? Infinity : 1
+const maxDepth = argv.recursive ? Infinity : 1
 for await (const { filepath, stat } of walk(dir, { exclude, maxDepth })) {
   const { ext, name, dir: subdir, base } = path.parse(filepath.substring(dir.length + 1))
   let finalName = safeName(name)
-  if (!noSuffix) {
+  if (suffix) {
     finalName = `${finalName}-q${quality}`
   }
   finalName = `${finalName}.jpg`
@@ -42,7 +73,7 @@ for await (const { filepath, stat } of walk(dir, { exclude, maxDepth })) {
   switch (ext) {
     case '.jpg':
     case '.jpeg':
-      if (noSubDir) {
+      if (subdir !== true) {
         console.log(`skip ${chalk.yellow(base)} ${chalk.dim('(--no-subdir -> jpg are ignored)')}`)
         continue
       } else {
@@ -52,7 +83,6 @@ for await (const { filepath, stat } of walk(dir, { exclude, maxDepth })) {
     case '.svg':
       break
     default:
-      // Skip file.
       continue
   }
   if (await fs.pathExists(out)) {
