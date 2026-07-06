@@ -16,6 +16,10 @@ const availableCommands = {
   'mp4': {
     description: 'A command to quickly export mp4 from the current folder.',
     program: () => import('./mp4/index.mjs'),
+  },
+  'xplr': {
+    description: 'A local file explorer server.',
+    program: () => import('./xplr/index.mjs'),
   }
 }
 
