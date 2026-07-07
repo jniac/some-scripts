@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   ExternalLink,
@@ -6,17 +5,21 @@ import {
   FileImage,
   FileText,
   Film,
+  FolderOpen,
   FolderTree,
   Gauge,
   Grid2X2,
   List,
   Loader2,
   Maximize2,
-  X,
   Search,
   Server,
   SlidersHorizontal,
+  X
 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 const fileTypes = [
   { label: 'All', value: 'all' },
@@ -24,6 +27,31 @@ const fileTypes = [
   { label: 'Videos', value: 'video', icon: Film },
   { label: 'Text', value: 'text', icon: FileText },
 ]
+
+const languageByExtension = {
+  '.css': 'css',
+  '.csv': 'csv',
+  '.html': 'html',
+  '.java': 'java',
+  '.js': 'javascript',
+  '.json': 'json',
+  '.jsx': 'jsx',
+  '.md': 'markdown',
+  '.mjs': 'javascript',
+  '.py': 'python',
+  '.rb': 'ruby',
+  '.rs': 'rust',
+  '.sh': 'bash',
+  '.sql': 'sql',
+  '.svg': 'xml',
+  '.toml': 'toml',
+  '.ts': 'typescript',
+  '.tsx': 'tsx',
+  '.txt': 'text',
+  '.xml': 'xml',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+}
 
 function formatSize(bytes) {
   if (bytes < 1024) {
@@ -64,8 +92,38 @@ function getMediaUrl(file) {
   return `/media/${file.relativePath.split('/').map(encodeURIComponent).join('/')}`
 }
 
+function getTextUrl(file, maxBytes = 200000) {
+  const params = new URLSearchParams({
+    path: file.relativePath,
+    maxBytes: String(maxBytes),
+  })
+  return `/api/text?${params}`
+}
+
 function canPreview(file) {
-  return file.type === 'image' || file.type === 'video'
+  return file.type === 'image' || file.type === 'video' || file.type === 'text'
+}
+
+function getLanguage(file) {
+  if (file.name === '.gitignore') {
+    return 'gitignore'
+  }
+  if (file.name.startsWith('.env')) {
+    return 'dotenv'
+  }
+  return languageByExtension[file.ext] ?? 'text'
+}
+
+function revealInSystem(file) {
+  return fetch('/api/reveal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: file.relativePath }),
+  })
+}
+
+function stopPropagation(event) {
+  event.stopPropagation()
 }
 
 function Stat({ icon: Icon, label, value }) {
@@ -114,6 +172,10 @@ function MediaPreview({ file, compact = false }) {
     )
   }
 
+  if (file.type === 'text') {
+    return <TextPreview file={file} />
+  }
+
   return (
     <div className="flex h-32 items-center justify-center bg-slate-100 dark:bg-slate-950">
       <FileTypeIcon type={file.type} />
@@ -121,7 +183,56 @@ function MediaPreview({ file, compact = false }) {
   )
 }
 
-function ListView({ files, onOpenMedia }) {
+function TextPreview({ file }) {
+  const [state, setState] = useState({ loading: true, content: '', error: null })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setState({ loading: true, content: '', error: null })
+    fetch(getTextUrl(file, 6000), { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Unable to read file')
+        }
+        return data
+      })
+      .then(data => {
+        const preview = data.content.split(/\r?\n/).slice(0, 16).join('\n')
+        setState({ loading: false, content: preview, error: null })
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          setState({ loading: false, content: '', error: error.message })
+        }
+      })
+    return () => controller.abort()
+  }, [file.relativePath])
+
+  if (state.loading) {
+    return (
+      <div className="flex h-40 items-center justify-center bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+        <Loader2 size={18} className="animate-spin" />
+      </div>
+    )
+  }
+
+  if (state.error) {
+    return (
+      <div className="flex h-40 items-center justify-center bg-slate-100 px-4 text-center text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+        {state.error}
+      </div>
+    )
+  }
+
+  return (
+    <pre className="max-h-72 overflow-hidden whitespace-pre-wrap bg-slate-100 p-3 font-mono text-[11px] leading-5 text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+      {state.content || ' '}
+    </pre>
+  )
+}
+
+function ListView({ files, onOpenFile }) {
   return (
     <div className="max-h-[calc(100vh-270px)] min-h-[420px] overflow-auto">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
@@ -156,7 +267,7 @@ function ListView({ files, onOpenMedia }) {
                 {canPreview(file) ? (
                   <button
                     type="button"
-                    onClick={() => onOpenMedia(file)}
+                    onClick={() => onOpenFile(file)}
                     className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
                     title="Open preview"
                   >
@@ -172,7 +283,7 @@ function ListView({ files, onOpenMedia }) {
   )
 }
 
-function TileView({ files, onOpenMedia }) {
+function TileView({ files, onOpenFile }) {
   return (
     <div className="max-h-[calc(100vh-270px)] min-h-[420px] overflow-auto p-4">
       <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
@@ -184,7 +295,7 @@ function TileView({ files, onOpenMedia }) {
             {canPreview(file) ? (
               <button
                 type="button"
-                onClick={() => onOpenMedia(file)}
+                onClick={() => onOpenFile(file)}
                 className="group block w-full text-left"
                 title="Open preview"
               >
@@ -215,6 +326,45 @@ function TileView({ files, onOpenMedia }) {
   )
 }
 
+function OverlayActions({ file, onClose }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2">
+      <a
+        href={getMediaUrl(file)}
+        target="_blank"
+        rel="noreferrer"
+        className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
+        title="Open file in a new tab"
+        onClick={stopPropagation}
+      >
+        <ExternalLink size={17} />
+      </a>
+      <button
+        type="button"
+        onClick={event => {
+          stopPropagation(event)
+          revealInSystem(file)
+        }}
+        className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
+        title="Reveal in Finder or Explorer"
+      >
+        <FolderOpen size={17} />
+      </button>
+      <button
+        type="button"
+        onClick={event => {
+          stopPropagation(event)
+          onClose()
+        }}
+        className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
+        title="Close preview"
+      >
+        <X size={20} />
+      </button>
+    </div>
+  )
+}
+
 function MediaOverlay({ file, onClose }) {
   useEffect(() => {
     if (!file) {
@@ -234,35 +384,131 @@ function MediaOverlay({ file, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white">
-      <div className="flex min-h-14 items-center justify-between gap-4 border-b border-white/10 px-4">
+    <div
+      data-testid="media-overlay-backdrop"
+      className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white"
+      onClick={onClose}
+    >
+      <div
+        className="flex min-h-14 items-center justify-between gap-4 border-b border-white/10 px-4"
+        onClick={stopPropagation}
+      >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{file.name}</p>
           <p className="truncate text-xs text-slate-400">{file.relativePath}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <a
-            href={getMediaUrl(file)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
-            title="Open media in a new tab"
-          >
-            <ExternalLink size={17} />
-          </a>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
-            title="Close preview"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <OverlayActions file={file} onClose={onClose} />
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <div className="flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-lg bg-black">
+        <div
+          data-testid="media-overlay-content"
+          className="flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-lg bg-black"
+          onClick={stopPropagation}
+        >
           <MediaPreview file={file} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextOverlay({ file, onClose }) {
+  const [state, setState] = useState({ loading: true, content: '', truncated: false, error: null })
+
+  useEffect(() => {
+    if (!file) {
+      return undefined
+    }
+    const controller = new AbortController()
+    setState({ loading: true, content: '', truncated: false, error: null })
+    fetch(getTextUrl(file), { signal: controller.signal })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) {
+          throw new Error(data.error ?? 'Unable to read file')
+        }
+        return data
+      })
+      .then(data => {
+        setState({ loading: false, content: data.content, truncated: data.truncated, error: null })
+      })
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          setState({ loading: false, content: '', truncated: false, error: error.message })
+        }
+      })
+
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      controller.abort()
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [file, onClose])
+
+  if (!file) {
+    return null
+  }
+
+  return (
+    <div
+      data-testid="text-overlay-backdrop"
+      className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white"
+      onClick={onClose}
+    >
+      <div
+        className="flex min-h-14 items-center justify-between gap-4 border-b border-white/10 px-4"
+        onClick={stopPropagation}
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{file.name}</p>
+          <p className="truncate text-xs text-slate-400">{file.relativePath}</p>
+        </div>
+        <OverlayActions file={file} onClose={onClose} />
+      </div>
+      <div className="min-h-0 flex-1 p-4">
+        <div
+          data-testid="text-overlay-content"
+          className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950"
+          onClick={stopPropagation}
+        >
+          {state.loading ? (
+            <div className="flex flex-1 items-center justify-center text-slate-400">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : state.error ? (
+            <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-slate-300">
+              {state.error}
+            </div>
+          ) : (
+            <>
+              {state.truncated ? (
+                <div className="border-b border-white/10 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+                  File is larger than the preview limit.
+                </div>
+              ) : null}
+              <div className="min-h-0 flex-1 overflow-auto">
+                <SyntaxHighlighter
+                  language={getLanguage(file)}
+                  style={oneDark}
+                  showLineNumbers
+                  customStyle={{
+                    minHeight: '100%',
+                    margin: 0,
+                    background: 'transparent',
+                    fontSize: 12,
+                  }}
+                  codeTagProps={{ style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' } }}
+                >
+                  {state.content}
+                </SyntaxHighlighter>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -351,6 +597,8 @@ export function App() {
     }
     return `${scan?.count ?? 0} files`
   }, [loading, scan])
+  const isolatedMedia = isolatedFile && isolatedFile.type !== 'text' ? isolatedFile : null
+  const isolatedText = isolatedFile?.type === 'text' ? isolatedFile : null
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-50">
@@ -495,13 +743,14 @@ export function App() {
               </div>
             ) : (
               viewMode === 'list'
-                ? <ListView files={files} onOpenMedia={setIsolatedFile} />
-                : <TileView files={files} onOpenMedia={setIsolatedFile} />
+                ? <ListView files={files} onOpenFile={setIsolatedFile} />
+                : <TileView files={files} onOpenFile={setIsolatedFile} />
             )}
           </section>
         </section>
       </div>
-      <MediaOverlay file={isolatedFile} onClose={() => setIsolatedFile(null)} />
+      <MediaOverlay file={isolatedMedia} onClose={() => setIsolatedFile(null)} />
+      <TextOverlay file={isolatedText} onClose={() => setIsolatedFile(null)} />
     </main>
   )
 }

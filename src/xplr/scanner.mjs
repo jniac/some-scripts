@@ -9,6 +9,7 @@ export const defaultIgnoredDirs = [
   'dist',
   'build',
   '.next',
+  '_next',
   '.turbo',
   'coverage',
   '.cache',

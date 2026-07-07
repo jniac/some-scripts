@@ -1,6 +1,7 @@
 import { spawn } from 'child_process'
 import express from 'express'
 import fs from 'fs'
+import fsp from 'fs/promises'
 import path from 'path'
 import process from 'process'
 
@@ -21,6 +22,25 @@ function resolveLocalFile(rootDir, relativePath) {
     return null
   }
   return filepath
+}
+
+function revealFile(filepath) {
+  const platformCommands = {
+    darwin: ['open', ['-R', filepath]],
+    win32: ['explorer.exe', [`/select,${filepath}`]],
+    linux: ['xdg-open', [path.dirname(filepath)]],
+  }
+
+  const command = platformCommands[process.platform]
+  if (!command) {
+    throw new Error(`Unsupported platform: ${process.platform}`)
+  }
+
+  const child = spawn(command[0], command[1], {
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
 }
 
 export function openBrowser(url) {
@@ -76,6 +96,47 @@ export async function startServer(options) {
         res.status(400).json({ error: error.message })
         return
       }
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  app.get('/api/text', async (req, res) => {
+    try {
+      const filepath = resolveLocalFile(rootDir, req.query.path)
+      if (!filepath || !fs.existsSync(filepath)) {
+        res.status(404).json({ error: 'File not found' })
+        return
+      }
+
+      const maxBytes = Math.min(Number.parseInt(req.query.maxBytes, 10) || 200000, 1000000)
+      const handle = await fsp.open(filepath, 'r')
+      try {
+        const buffer = Buffer.alloc(maxBytes)
+        const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0)
+        const stat = await handle.stat()
+        res.json({
+          content: buffer.subarray(0, bytesRead).toString('utf8'),
+          truncated: stat.size > bytesRead,
+          size: stat.size,
+        })
+      } finally {
+        await handle.close()
+      }
+    } catch (error) {
+      res.status(500).json({ error: error.message })
+    }
+  })
+
+  app.post('/api/reveal', express.json(), (req, res) => {
+    try {
+      const filepath = resolveLocalFile(rootDir, req.body?.path)
+      if (!filepath || !fs.existsSync(filepath)) {
+        res.status(404).json({ error: 'File not found' })
+        return
+      }
+      revealFile(filepath)
+      res.json({ ok: true })
+    } catch (error) {
       res.status(500).json({ error: error.message })
     }
   })
