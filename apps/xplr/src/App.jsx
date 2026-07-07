@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  ExternalLink,
   File,
   FileImage,
   FileText,
   Film,
   FolderTree,
   Gauge,
+  Grid2X2,
+  List,
   Loader2,
+  Maximize2,
+  X,
   Search,
   Server,
   SlidersHorizontal,
@@ -55,6 +60,14 @@ function FileTypeIcon({ type }) {
   return <File size={17} className={className} />
 }
 
+function getMediaUrl(file) {
+  return `/media/${file.relativePath.split('/').map(encodeURIComponent).join('/')}`
+}
+
+function canPreview(file) {
+  return file.type === 'image' || file.type === 'video'
+}
+
 function Stat({ icon: Icon, label, value }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -71,10 +84,197 @@ function Stat({ icon: Icon, label, value }) {
   )
 }
 
+function MediaPreview({ file, compact = false }) {
+  if (file.type === 'image') {
+    return (
+      <img
+        src={getMediaUrl(file)}
+        alt={file.name}
+        loading="lazy"
+        className={[
+          'w-full bg-slate-100 object-cover dark:bg-slate-950',
+          compact ? 'max-h-72' : 'max-h-[82vh]',
+        ].join(' ')}
+      />
+    )
+  }
+
+  if (file.type === 'video') {
+    return (
+      <video
+        src={getMediaUrl(file)}
+        muted={compact}
+        controls={!compact}
+        preload="metadata"
+        className={[
+          'w-full bg-black object-contain',
+          compact ? 'max-h-72' : 'max-h-[82vh]',
+        ].join(' ')}
+      />
+    )
+  }
+
+  return (
+    <div className="flex h-32 items-center justify-center bg-slate-100 dark:bg-slate-950">
+      <FileTypeIcon type={file.type} />
+    </div>
+  )
+}
+
+function ListView({ files, onOpenMedia }) {
+  return (
+    <div className="max-h-[calc(100vh-270px)] min-h-[420px] overflow-auto">
+      <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+        <thead className="sticky top-0 bg-slate-100 text-xs uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+          <tr>
+            <th className="w-10 px-4 py-3 font-medium" />
+            <th className="px-4 py-3 font-medium">Name</th>
+            <th className="px-4 py-3 font-medium">Type</th>
+            <th className="px-4 py-3 text-right font-medium">Size</th>
+            <th className="px-4 py-3 text-right font-medium">Modified</th>
+            <th className="w-12 px-4 py-3 font-medium" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          {files.map(file => (
+            <tr key={file.relativePath} className="hover:bg-slate-50 dark:hover:bg-slate-950">
+              <td className="px-4 py-3">
+                <FileTypeIcon type={file.type} />
+              </td>
+              <td className="max-w-0 px-4 py-3">
+                <p className="truncate font-medium text-slate-800 dark:text-slate-100">{file.name}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">{file.relativePath}</p>
+              </td>
+              <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">{file.type}</td>
+              <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                {formatSize(file.size)}
+              </td>
+              <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
+                {formatDate(file.mtimeMs)}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {canPreview(file) ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenMedia(file)}
+                    className="inline-flex size-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                    title="Open preview"
+                  >
+                    <Maximize2 size={15} />
+                  </button>
+                ) : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TileView({ files, onOpenMedia }) {
+  return (
+    <div className="max-h-[calc(100vh-270px)] min-h-[420px] overflow-auto p-4">
+      <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
+        {files.map(file => (
+          <article
+            key={file.relativePath}
+            className="mb-4 break-inside-avoid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+          >
+            {canPreview(file) ? (
+              <button
+                type="button"
+                onClick={() => onOpenMedia(file)}
+                className="group block w-full text-left"
+                title="Open preview"
+              >
+                <div className="relative">
+                  <MediaPreview file={file} compact />
+                  <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-md bg-black/55 text-white opacity-0 transition group-hover:opacity-100">
+                    <Maximize2 size={15} />
+                  </span>
+                </div>
+              </button>
+            ) : (
+              <div className="flex h-28 items-center justify-center bg-slate-100 dark:bg-slate-900">
+                <FileTypeIcon type={file.type} />
+              </div>
+            )}
+            <div className="space-y-1 p-3">
+              <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{file.name}</p>
+              <p className="line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{file.relativePath}</p>
+              <div className="flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                <span className="capitalize">{file.type}</span>
+                <span className="tabular-nums">{formatSize(file.size)}</span>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MediaOverlay({ file, onClose }) {
+  useEffect(() => {
+    if (!file) {
+      return undefined
+    }
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [file, onClose])
+
+  if (!file) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/95 text-white">
+      <div className="flex min-h-14 items-center justify-between gap-4 border-b border-white/10 px-4">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{file.name}</p>
+          <p className="truncate text-xs text-slate-400">{file.relativePath}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <a
+            href={getMediaUrl(file)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
+            title="Open media in a new tab"
+          >
+            <ExternalLink size={17} />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 hover:text-white"
+            title="Close preview"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+        <div className="flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-lg bg-black">
+          <MediaPreview file={file} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function App() {
   const [meta, setMeta] = useState(null)
   const [nameFilter, setNameFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [viewMode, setViewMode] = useState('list')
+  const [isolatedFile, setIsolatedFile] = useState(null)
   const [scan, setScan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -239,12 +439,42 @@ export function App() {
           </aside>
 
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+            <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Files</h2>
-              <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                {loading ? <Loader2 size={13} className="animate-spin" /> : null}
-                {scan?.truncated ? `Limited to ${scan.maxFiles}` : `${files.length} listed`}
-              </span>
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <div className="flex rounded-md border border-slate-300 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-950">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('list')}
+                    className={[
+                      'flex size-8 items-center justify-center rounded text-slate-500 transition dark:text-slate-400',
+                      viewMode === 'list'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
+                        : 'hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white',
+                    ].join(' ')}
+                    title="List view"
+                  >
+                    <List size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('tiles')}
+                    className={[
+                      'flex size-8 items-center justify-center rounded text-slate-500 transition dark:text-slate-400',
+                      viewMode === 'tiles'
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
+                        : 'hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-white',
+                    ].join(' ')}
+                    title="Tile view"
+                  >
+                    <Grid2X2 size={16} />
+                  </button>
+                </div>
+                <span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  {loading ? <Loader2 size={13} className="animate-spin" /> : null}
+                  {scan?.truncated ? `Limited to ${scan.maxFiles}` : `${files.length} listed`}
+                </span>
+              </div>
             </div>
 
             {error ? (
@@ -264,49 +494,14 @@ export function App() {
                 </div>
               </div>
             ) : (
-              <div className="max-h-[calc(100vh-270px)] min-h-[420px] overflow-auto">
-                <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-                  <thead className="sticky top-0 bg-slate-100 text-xs uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                    <tr>
-                      <th className="w-10 px-4 py-3 font-medium" />
-                      <th className="px-4 py-3 font-medium">Name</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
-                      <th className="px-4 py-3 text-right font-medium">Size</th>
-                      <th className="px-4 py-3 text-right font-medium">Modified</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {files.map(file => (
-                      <tr key={file.relativePath} className="hover:bg-slate-50 dark:hover:bg-slate-950">
-                        <td className="px-4 py-3">
-                          <FileTypeIcon type={file.type} />
-                        </td>
-                        <td className="max-w-0 px-4 py-3">
-                          <p className="truncate font-medium text-slate-800 dark:text-slate-100">
-                            {file.name}
-                          </p>
-                          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                            {file.relativePath}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 capitalize text-slate-600 dark:text-slate-300">
-                          {file.type}
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                          {formatSize(file.size)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300">
-                          {formatDate(file.mtimeMs)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              viewMode === 'list'
+                ? <ListView files={files} onOpenMedia={setIsolatedFile} />
+                : <TileView files={files} onOpenMedia={setIsolatedFile} />
             )}
           </section>
         </section>
       </div>
+      <MediaOverlay file={isolatedFile} onClose={() => setIsolatedFile(null)} />
     </main>
   )
 }

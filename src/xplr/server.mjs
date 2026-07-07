@@ -14,6 +14,15 @@ function sendIndex(res, distDir) {
   res.sendFile(path.join(distDir, 'index.html'))
 }
 
+function resolveLocalFile(rootDir, relativePath) {
+  const filepath = path.resolve(rootDir, String(relativePath ?? ''))
+  const relative = path.relative(rootDir, filepath)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null
+  }
+  return filepath
+}
+
 export function openBrowser(url) {
   const platformCommands = {
     darwin: ['open', [url]],
@@ -71,6 +80,18 @@ export async function startServer(options) {
     }
   })
 
+  app.get('/media/*path', (req, res) => {
+    const relativePath = Array.isArray(req.params.path)
+      ? req.params.path.join('/')
+      : req.params.path
+    const filepath = resolveLocalFile(rootDir, relativePath)
+    if (!filepath || !fs.existsSync(filepath)) {
+      res.status(404).json({ error: 'File not found' })
+      return
+    }
+    res.sendFile(filepath)
+  })
+
   if (fs.existsSync(path.join(distDir, 'index.html'))) {
     app.use(express.static(distDir, {
       fallthrough: true,
@@ -93,9 +114,12 @@ export async function startServer(options) {
     instance.on('error', reject)
   })
 
+  const address = server.address()
+  const resolvedPort = address && typeof address === 'object' ? address.port : port
+
   return {
     app,
     server,
-    url: `http://${host}:${server.address().port}/`,
+    url: `http://${host}:${resolvedPort}/`,
   }
 }

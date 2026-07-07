@@ -37,7 +37,7 @@ const argv = yargs(args)
 
 const rootDir = path.resolve(cwd, String(argv._[0] ?? '.'))
 
-const { url } = await startServer({
+const { url, server } = await startServer({
   host: argv.host,
   port: argv.port,
   rootDir,
@@ -50,3 +50,11 @@ console.log(chalk.green(url))
 if (argv.open) {
   openBrowser(url)
 }
+
+await new Promise(resolve => {
+  const close = () => {
+    server.close(resolve)
+  }
+  process.once('SIGINT', close)
+  process.once('SIGTERM', close)
+})
