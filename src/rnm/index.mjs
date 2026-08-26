@@ -21,7 +21,7 @@ const argv = yargs(args)
   .option('name', {
     alias: 'n',
     type: 'string',
-    describe: 'Name of the file to create',
+    describe: 'Name of the file to create. Use %0Nd for zero-padded index (e.g. "file-%04d")',
   })
   .option('offset', {
     alias: 'o',
