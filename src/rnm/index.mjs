@@ -6,6 +6,11 @@ import { hideBin } from 'yargs/helpers'
 
 const rawArgs = hideBin(process.argv)
 
+// If no arguments are provided, show help
+if (rawArgs.length === 2) {
+  rawArgs.push('--help')
+}
+
 const args = rawArgs.slice(1)
 
 const argv = yargs(args)
